@@ -3,12 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<!-- TOUR REALISTA INDUSTRIAL MODIFICADO -->
 <title>APS ENG. MEC UNIP 2026 — Tour Virtual 360°</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap');
 *{margin:0;padding:0;box-sizing:border-box}
-:root{--bg:#050a10;--panel:#0b1520;--panel2:#0f1e2e;--accent:#00d4ff;
-  --accent2:#ff6b35;--gold:#f0c040;--text:#c8dde8;--text2:#6a8fa0;--border:#1a3040}
+:root{--bg:#0b1320;--panel:#101820;--panel2:#152230;--accent:#5bc0de;
+  --accent2:#ff6b35;--gold:#f0c040;--text:#d7dde2;--text2:#8c9aa3;--border:#1a3040}
 html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:'Rajdhani',sans-serif}
 /* SPLASH (inalterado) */
 #splash{position:fixed;inset:0;z-index:100;background:var(--bg);display:flex;flex-direction:column;
@@ -48,7 +49,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 .btn-explore:hover{transform:translateY(-2px);box-shadow:0 4px 40px rgba(0,212,255,.5)}
 .btn-explore:active{transform:translateY(0)}
 .btn-explore::before{content:'';position:absolute;inset:0;
-  background:linear-gradient(90deg,transparent,rgba(255,255,255,.15),transparent);
+  background:linear-gradient(90deg,transparent,rgba(175,180,185,.15),transparent);
   transform:translateX(-100%);transition:transform .5s}
 .btn-explore:hover::before{transform:translateX(100%)}
 .btn-arrow{font-size:1.3em;transition:transform .2s}
@@ -82,7 +83,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 .comp-item:hover{background:rgba(0,212,255,.05)}
 .comp-item.hidden-item{opacity:.35}
 .comp-item.selected{background:rgba(0,212,255,.1);color:var(--accent)}
-.comp-dot{width:10px;height:10px;border-radius:1px;flex-shrink:0;border:1px solid rgba(255,255,255,.15)}
+.comp-dot{width:10px;height:10px;border-radius:1px;flex-shrink:0;border:1px solid rgba(175,180,185,.15)}
 .comp-eye{margin-left:auto;font-size:.75rem;opacity:.5;transition:opacity .15s}
 .comp-item:hover .comp-eye{opacity:1}
 #canvas-wrap{flex:1;position:relative;overflow:hidden}
@@ -370,7 +371,7 @@ function buildMeshes(){
     geo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(data.v),3));
     geo.setIndex(data.i);
     geo.computeVertexNormals();
-    const mat=new THREE.MeshPhongMaterial({color:new THREE.Color(data.c),
+    const mat=new THREE.MeshStandardMaterial({metalness:0.72,roughness:0.42, emissive:0x111111,color:new THREE.Color(data.c),
       specular:new THREE.Color(0x2a3a4a),shininess:55,flatShading:false,side:THREE.DoubleSide});
     materialMap[label]=mat;
     const mesh=new THREE.Mesh(geo,mat);
@@ -406,6 +407,40 @@ function buildMeshes(){
   }
   {const mb=new THREE.Box3();for(const mm of Object.values(meshMap)){mm.updateMatrix();mb.union(mm.geometry.boundingBox.clone().applyMatrix4(mm.matrix));}modelCenter=mb.getCenter(new THREE.Vector3());}
   document.getElementById('stat-tris').textContent='Tri\u00e2ngulos: '+totalTris.toLocaleString('pt-BR');
+}
+
+
+// ===== PALETA INDUSTRIAL REALISTA =====
+const REALISTIC_COLORS = {
+'Base': 0xb9b9b9,
+'Painel de Botões': 0x414141,
+'Botões': 0xb92323,
+'LEDs': 0x32ff7e,
+'Comutador': 0x5f6e69,
+'Vigas Horizontais': 0x9ba0a5,
+'Viga Frontal': 0xafb4b9,
+'Bancada': 0x787878,
+'Motor': 0x696e73,
+'Guias da Cabine': 0x5f647d,
+'Guias do Contrapeso': 0x736982,
+'Portas': 0x3a4e6e,
+'Contrapeso': 0x55736e,
+'Cabo da Cabine': 0x7d7d7d,
+'GanchoCabina': 0x969696,
+'Corona': 0x5a5a5a,
+'Verticais': 0xaaaeb4,
+'Cabine': 0x3a4e6e,
+'Cabo do Contrapeso': 0x696969,
+'Polia do Contrapeso': 0x87878c,
+'Eixo da Polia 01': 0xa0a0a0,
+'Eixo da Polia 02': 0xa0a0a0,
+'Viga das Polias': 0x7d7d7d
+};
+
+for(const [partName, colorValue] of Object.entries(REALISTIC_COLORS)){
+  if(MESH_DATA[partName]){
+    MESH_DATA[partName].c = colorValue;
+  }
 }
 
 const COLORS_CSS={};
