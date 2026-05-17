@@ -224,10 +224,10 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
             <line class="cmp-tick" x1="92" y1="50" x2="85" y2="50"/>
             <polygon class="cmp-needle-n" points="50,18 45,50 55,50"/>
             <polygon class="cmp-needle-s" points="50,82 45,50 55,50"/>
-            <text class="cmp-card cmp-n" x="50" y="6"  text-anchor="middle">N</text>
-            <text class="cmp-card" x="50" y="99" text-anchor="middle">S</text>
-            <text class="cmp-card" x="97" y="53" text-anchor="middle">L</text>
-            <text class="cmp-card" x="3"  y="53" text-anchor="middle">O</text>
+            <text class="cmp-card cmp-n" x="50" y="6"  text-anchor="middle">Z+</text>
+            <text class="cmp-card" x="50" y="99" text-anchor="middle">Z-</text>
+            <text class="cmp-card" x="92" y="53" text-anchor="middle">X+</text>
+            <text class="cmp-card" x="8"  y="53" text-anchor="middle">X-</text>
           </g>
           <g id="cmp-axes" transform="translate(50,50)">
             <line class="cmp-axis-x" x1="0" y1="0" x2="16" y2="0"/>
@@ -439,7 +439,7 @@ function buildDimEnvironment(){
     soft(520,300,   0,620, 160,0.95);
     soft(420,520,-640,300,  40,0.6);
     soft(360,460, 600,260,-140,0.45);
-    const rt=pmrem.fromScene(env,0.06,0.1,2400);
+    const rt=pmrem.fromScene(env,0.04,0.1,2600);
     scene.environment=rt.texture;envRT=rt;
     pmrem.dispose();
   }catch(e){}
@@ -474,20 +474,18 @@ function attachLedGlow(mesh,geo,color){
 /* unified modern holographic blue, subtly varied per component so the
    structure stays readable (more logical than a flat single tone) */
 function holoColorFor(colorInt,label){
-  const o=new THREE.Color(colorInt);
-  const lum=0.299*o.r+0.587*o.g+0.114*o.b;
-  const c=new THREE.Color();
-  if(/led/i.test(label)) c.setHSL(0.52,0.65,0.92);
-  else c.setHSL(0.545,0.90,0.46+lum*0.34);
-  return c;
+  // Brilho holográfico bem discreto: mantém a cor real sem lavar/esbranquiçar.
+  const c=new THREE.Color(colorInt);
+  if(/led|leds/i.test(label)) return new THREE.Color(0x28be5a);
+  return c.offsetHSL(0,0.02,0.015);
 }
 function attachHoloEdges(mesh,geo,colorInt,label){
   try{
     const eg=new THREE.EdgesGeometry(geo,26);
     const c=holoColorFor(colorInt,label);
     const em=new THREE.LineBasicMaterial({color:c.clone(),transparent:true,
-      opacity:/led/i.test(label)?1.0:0.92,depthWrite:false,
-      blending:THREE.AdditiveBlending});
+      opacity:/led/i.test(label)?0.70:0.28,depthWrite:false,
+      blending:THREE.NormalBlending});
     const ls=new THREE.LineSegments(eg,em);
     ls.raycast=function(){};
     ls.renderOrder=6;
@@ -496,32 +494,56 @@ function attachHoloEdges(mesh,geo,colorInt,label){
     edgeMap[label]=em;
   }catch(e){}
 }
-/* ghostly volumetric fill (fresnel -> brighter & more solid at grazing
-   angles, like the projected elephant) with a soft moving holo scan line */
+function materialProfile(label){
+  const l=label.toLowerCase();
+  // Acabamento tipo tinta metálica: cor cheia, brilho leve, sem aspecto branco/cromado.
+  if(l.includes('base')) return {metalness:0.10,roughness:0.78,textureGain:0.55}; // concreto claro menos reflexivo
+  if(l.includes('botões')||l.includes('botoes')) return {metalness:0.38,roughness:0.50,textureGain:0.24};
+  if(l.includes('led')) return {metalness:0.0,roughness:0.22,textureGain:0.08};
+  if(l.includes('eixo')) return {metalness:0.62,roughness:0.34,textureGain:0.18};
+  if(l.includes('painel')||l.includes('grafite')||l.includes('corona')) return {metalness:0.46,roughness:0.56,textureGain:0.42};
+  if(l.includes('bancada')) return {metalness:0.52,roughness:0.58,textureGain:0.55};
+  if(l.includes('motor')) return {metalness:0.50,roughness:0.54,textureGain:0.40};
+  if(l.includes('cabo')) return {metalness:0.58,roughness:0.58,textureGain:0.30};
+  if(l.includes('porta')||l.includes('cabine')) return {metalness:0.44,roughness:0.52,textureGain:0.34};
+  if(l.includes('viga')||l.includes('vertical')||l.includes('guia')||l.includes('polia')||l.includes('gancho')||l.includes('comutador')||l.includes('contrapeso')) return {metalness:0.48,roughness:0.56,textureGain:0.38};
+  return {metalness:0.45,roughness:0.55,textureGain:0.35};
+}
+/* acabamento atualizado: tinta metálica levemente brilhante, sem translucidez
+   e sem aspecto esbranquiçado/cromado; RGB dos 23 componentes preservado */
 function makeHoloMaterial(label,colorInt){
-  const isLED=/led/i.test(label);
+  const isLED=/led|leds/i.test(label);
+  const baseColor=new THREE.Color(colorInt);
   const rimC=holoColorFor(colorInt,label);
+  const tex=materialProfile(label);
   const mat=new THREE.MeshStandardMaterial({
-    color:new THREE.Color(0x0b2a3e),
-    metalness:0.0,roughness:0.9,
-    transparent:true,opacity:isLED?0.32:0.17,
-    emissive:new THREE.Color(0x06141d),emissiveIntensity:1.0,
-    depthWrite:false,side:THREE.DoubleSide});
+    color:baseColor,
+    metalness:isLED?0.04:tex.metalness,
+    roughness:isLED?0.22:tex.roughness,
+    envMapIntensity:isLED?0.55:0.42,
+    transparent:false,
+    opacity:1.0,
+    emissive:baseColor.clone().multiplyScalar(isLED?0.30:0.010),
+    emissiveIntensity:isLED?1.05:0.045,
+    depthWrite:true,
+    side:THREE.DoubleSide});
   mat.userData.baseEmissive=mat.emissive.getHex();
   mat.onBeforeCompile=function(sh){
     sh.uniforms.uHoloColor={value:rimC};
-    sh.uniforms.uRim={value:isLED?1.6:1.05};
+    sh.uniforms.uRim={value:isLED?1.15:0.16};
     sh.uniforms.uTime={value:0};
-    sh.vertexShader='varying float vWY;\n'+sh.vertexShader;
+    sh.uniforms.uTextureGain={value:tex.textureGain};
+    sh.vertexShader='varying float vWY;\nvarying vec3 vObjPos;\n'+sh.vertexShader;
     sh.vertexShader=sh.vertexShader.replace('#include <begin_vertex>',
-      '#include <begin_vertex>\n vWY=(modelMatrix*vec4(transformed,1.0)).y;');
-    sh.fragmentShader='uniform vec3 uHoloColor;\nuniform float uRim;\nuniform float uTime;\nvarying float vWY;\n'+sh.fragmentShader;
+      '#include <begin_vertex>\n vWY=(modelMatrix*vec4(transformed,1.0)).y;\n vObjPos=position;');
+    sh.fragmentShader='uniform vec3 uHoloColor;\nuniform float uRim;\nuniform float uTime;\nuniform float uTextureGain;\nvarying float vWY;\nvarying vec3 vObjPos;\n'+sh.fragmentShader;
     sh.fragmentShader=sh.fragmentShader.replace('#include <output_fragment>',
       'float _f=pow(1.0-clamp(dot(normalize(normal),normalize(vViewPosition)),0.0,1.0),2.0);\n'+
       'float _band=0.5+0.5*sin(vWY*0.05 - uTime*1.6);\n'+
       'float _scan=exp(-pow((fract(vWY*0.0045 - uTime*0.05)-0.5)*22.0,2.0));\n'+
-      'outgoingLight += uHoloColor*((_f*_f*1.0 + _f*0.5) + _band*0.06 + _scan*0.5)*uRim;\n'+
-      'diffuseColor.a *= clamp(0.40 + _f*0.95 + _scan*0.4, 0.0, 1.0);\n'+
+      'float _grain=(sin(vObjPos.x*0.37)+sin(vObjPos.y*0.23)+sin(vObjPos.z*0.31))*0.5;\n'+
+      'outgoingLight *= 1.0 + _grain*0.022*uTextureGain;\n'+
+      'outgoingLight += uHoloColor*((_f*_f*0.055 + _f*0.025) + _band*0.004 + _scan*0.018)*uRim;\n'+
       '#include <output_fragment>');
     mat.userData.shader=sh;
     _shaders.push(sh);
@@ -532,7 +554,7 @@ function restoreEmissive(label){
   const m=materialMap[label];
   if(m) m.emissive.setHex(m.userData&&m.userData.baseEmissive!=null?m.userData.baseEmissive:0x000000);
   const e=edgeMap[label];
-  if(e&&meshMap[label]){ e.color.setHex(meshMap[label].userData.edgeBase); e.opacity=0.92; }
+  if(e&&meshMap[label]){ e.color.setHex(meshMap[label].userData.edgeBase); e.opacity=/led/i.test(label)?0.70:0.28; }
 }
 function makeHudTexture(big){
   const N=1024,c=document.createElement('canvas');c.width=c.height=N;
@@ -693,36 +715,40 @@ function buildMeshes(){
 
 // ===== PALETA INDUSTRIAL REALISTA =====
 const REALISTIC_COLORS = {
-'Base': 0xb9b9b9,
-'Painel de Botões': 0x414141,
-'Botões': 0xb92323,
-'LEDs': 0x32ff7e,
-'Comutador': 0x5f6e69,
-'Vigas Horizontais': 0x9ba0a5,
-'Viga Frontal': 0xafb4b9,
-'Bancada': 0x787878,
-'Motor': 0x696e73,
-'Guias da Cabine': 0x5f647d,
-'Guias do Contrapeso': 0x736982,
-'Portas': 0x3a4e6e,
-'Contrapeso': 0x55736e,
-'Cabo da Cabine': 0x7d7d7d,
-'GanchoCabina': 0x969696,
-'Corona': 0x5a5a5a,
-'Verticais': 0xaaaeb4,
-'Cabine': 0x3a4e6e,
-'Cabo do Contrapeso': 0x696969,
-'Polia do Contrapeso': 0x87878c,
-'Eixo da Polia 01': 0xa0a0a0,
-'Eixo da Polia 02': 0xa0a0a0,
-'Viga das Polias': 0x7d7d7d
+  'Base': 0xb9b9b9,                 // RGB(185,185,185) concreto claro
+  'Painel de Botões': 0x414141,     // RGB(65,65,65) aço grafite
+  'Painel de Bot\u00f5es': 0x414141,
+  'Botões': 0xb92323,               // RGB(185,35,35) vermelho industrial
+  'Bot\u00f5es': 0xb92323,
+  'LEDs': 0x28be5a,                 // RGB(40,190,90) verde indicador
+  'Leds': 0x28be5a,
+  'Comutador': 0x5f6e69,            // RGB(95,110,105) metálico fosco
+  'Vigas Horizontais': 0x9ba0a5,    // RGB(155,160,165) alumínio
+  'Viga Frontal': 0xafb4b9,         // RGB(175,180,185) alumínio claro
+  'Bancada': 0x787878,              // RGB(120,120,120) aço escovado
+  'Motor': 0x696e73,                // RGB(105,110,115) motor metálico real
+  'Guias da Cabine': 0x5f647d,      // RGB(95,100,125) aço azulado
+  'Guias do Contrapeso': 0x736982,  // RGB(115,105,130) aço técnico
+  'Portas': 0x3a4e6e,               // RGB(58,78,110) azul industrial
+  'Contrapeso': 0x55736e,           // RGB(85,115,110) verde metálico
+  'Cabo da Cabine': 0x7d7d7d,       // RGB(125,125,125) aço
+  'GanchoCabina': 0x969696,         // RGB(150,150,150) aço polido
+  'Corona': 0x5a5a5a,               // RGB(90,90,90) grafite
+  'Verticais': 0xaaaeb4,            // RGB(170,175,180) alumínio estrutural
+  'Verticales': 0xaaaeb4,
+  'Cabine': 0x3a4e6e,               // RGB(58,78,110) igual às portas
+  'Cabo do Contrapeso': 0x696969,   // RGB(105,105,105) aço fosco
+  'Polia do Contrapeso': 0x87878c,  // RGB(135,135,140) linha que suspende
+  'Eixo da Polia 01': 0xa0a0a0,     // RGB(160,160,160) cromado
+  'Eixo da Polia01': 0xa0a0a0,
+  'Eixo da Polia 02': 0xa0a0a0,     // RGB(160,160,160) cromado
+  'Viga das Polias': 0x7d7d7d       // RGB(125,125,125) aço estrutural
 };
 
 for(const [partName, colorValue] of Object.entries(REALISTIC_COLORS)){
-  if(MESH_DATA[partName]){
-    MESH_DATA[partName].c = colorValue;
-  }
+  if(MESH_DATA[partName]) MESH_DATA[partName].c = colorValue;
 }
+
 
 const COLORS_CSS={};
 for(const [l,dd] of Object.entries(MESH_DATA)) COLORS_CSS[l]='#'+dd.c.toString(16).padStart(6,'0');
@@ -816,7 +842,7 @@ function onCanvasClick(e){
   if(hits.length>0){
     const label=hits[0].object.userData.label;selectedMesh=label;
     materialMap[label].emissive.setHex(0x14361f);
-    if(edgeMap[label]){ edgeMap[label].color.setHex(0xffffff); edgeMap[label].opacity=1.0; }
+    if(edgeMap[label]){ edgeMap[label].color.setHex(meshMap[label].userData.edgeBase); edgeMap[label].opacity=0.48; }
     const d=dimMap[label];
     document.getElementById('sel-name').textContent=label;
     document.getElementById('d-w').textContent=d.w.toFixed(1)+' mm';
