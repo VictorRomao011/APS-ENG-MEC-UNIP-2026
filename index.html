@@ -337,6 +337,7 @@ let envRT=null,gridFloor=null,gridUnderlay=null,projectorPool=null,shadowCatcher
 let edgeMap={},hudRing1=null,hudRing2=null,holoT=0,splashTimer=null,_shaders=[];
 let GLOW_TEX=null,camSph=null,camTgt=null;
 let modelGroup,floatT=0;
+let autoRotateModel=true;
 let partCenter={},modelCenter,modelSize;
 let meshMap={},materialMap={},dimMap={},wireMap={},cotaGroup={};
 let isWire=false,isExplode=false,isCotas=false,isVideoDemo=false;
@@ -845,6 +846,7 @@ function buildSidebar(){
   }
 }
 function toggleComponent(label){
+  stopAutoRotateModel();
   const m=meshMap[label];m.visible=!m.visible;
   document.getElementById('ci-'+cssId(label)).classList.toggle('hidden-item',!m.visible);
 }
@@ -1131,8 +1133,13 @@ function updateVideoDemo(now){
   if(t>=0.88) setVideoStatus('Vídeo: ciclo concluído');
 }
 
+function stopAutoRotateModel(){
+  autoRotateModel=false;
+}
+
 function onCanvasClick(e){
   if(clickMoved) return;
+  stopAutoRotateModel();
   const rect=renderer.domElement.getBoundingClientRect();
   const mouse=new THREE.Vector2(((e.clientX-rect.left)/rect.width)*2-1,
     -((e.clientY-rect.top)/rect.height)*2+1);
@@ -1164,7 +1171,7 @@ let orbitTarget=new THREE.Vector3(0,150,0);
 let isDragging=false,isRightDrag=false,prevMouse={x:0,y:0};
 let spherical={theta:Math.PI/4,phi:Math.PI/3.4,r:620};
 function setupControls(canvas){
-  canvas.addEventListener('mousedown',e=>{isDragging=true;isRightDrag=e.button===2;
+  canvas.addEventListener('mousedown',e=>{stopAutoRotateModel();isDragging=true;isRightDrag=e.button===2;
     prevMouse={x:e.clientX,y:e.clientY}});
   window.addEventListener('mouseup',()=>{isDragging=false});
   window.addEventListener('mousemove',e=>{
@@ -1183,10 +1190,11 @@ function setupControls(canvas){
     updateCamera();
   });
   canvas.addEventListener('wheel',e=>{e.preventDefault();
+    stopAutoRotateModel();
     spherical.r=Math.max(120,Math.min(2200,spherical.r+e.deltaY*0.8));updateCamera()},{passive:false});
   canvas.addEventListener('contextmenu',e=>e.preventDefault());
   let tch=[],pinch=null;
-  canvas.addEventListener('touchstart',e=>{tch=[...e.touches];pinch=null},{passive:true});
+  canvas.addEventListener('touchstart',e=>{stopAutoRotateModel();tch=[...e.touches];pinch=null},{passive:true});
   canvas.addEventListener('touchmove',e=>{
     e.preventDefault();
     if(e.touches.length===1&&tch.length===1){
@@ -1221,7 +1229,7 @@ function animate(){
   requestAnimationFrame(animate);
   if(modelGroup){
     floatT+=0.016;
-    if((typeof isDragging==='undefined'||!isDragging)&&!isVideoDemo) modelGroup.rotation.y+=0.0040;
+    if(autoRotateModel&&(typeof isDragging==='undefined'||!isDragging)&&!isVideoDemo) modelGroup.rotation.y+=0.0040;
     if(!isVideoDemo) modelGroup.position.y=20+Math.sin(floatT*0.9)*3.0;
     else modelGroup.position.y=0;
   }
