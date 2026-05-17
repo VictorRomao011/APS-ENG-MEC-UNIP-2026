@@ -133,13 +133,15 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
   background:rgba(4,12,20,.86);border:1px solid var(--accent);border-left:3px solid var(--accent2);
   border-radius:4px;padding:.85rem 1rem;box-shadow:0 0 22px rgba(91,192,222,.18);
   backdrop-filter:blur(6px);opacity:0;visibility:hidden;pointer-events:none;transition:opacity .25s,visibility .25s}
-#video-info-box.show{opacity:1;visibility:visible}
+#video-info-box.show{opacity:1;visibility:visible;pointer-events:auto}
+#video-info-box .video-close{position:absolute;top:.45rem;right:.55rem;width:24px;height:24px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,80,80,.8);border-radius:50%;background:rgba(120,0,0,.35);color:#ff4d4d;font-family:Arial,sans-serif;font-size:16px;font-weight:900;line-height:1;cursor:pointer;box-shadow:0 0 10px rgba(255,77,77,.25)}
+#video-info-box .video-close:hover{background:rgba(180,0,0,.55);color:#fff}
 #video-info-box h3{font-family:'Share Tech Mono',monospace;font-size:.75rem;letter-spacing:.12em;color:var(--accent);
   margin-bottom:.5rem;text-transform:uppercase}
 #video-info-box p{font-size:.86rem;line-height:1.32;color:var(--text);margin-bottom:.42rem}
 #video-info-box b{color:#ffffff;font-weight:700}
 #video-info-box .step{display:block;color:var(--text2);font-size:.78rem;margin-top:.35rem}
-@media (max-width:760px){#video-info-box{left:.5rem;right:.5rem;top:3.5rem;width:auto;font-size:.8rem}}
+@media (max-width:760px){#video-info-box{left:.5rem;right:.5rem;top:auto;bottom:4.8rem;width:auto;font-size:.8rem;max-height:45vh;overflow:auto}}
 .btn.video.active{background:rgba(255,107,53,.16);border-color:var(--accent2);color:var(--accent2)}
 #bottombar{position:absolute;left:0;right:0;bottom:0;display:flex;flex-wrap:wrap;
   align-items:center;justify-content:center;gap:.3rem;padding:.5rem .6rem;
@@ -220,6 +222,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
       <div class="mode-tag" id="mode-tag">Vista Explodida &middot; Cotas T&eacute;cnicas (mm)</div>
       <div id="video-status">Simulação de funcionamento</div>
       <div id="video-info-box">
+        <button class="video-close" onclick="hideVideoInfoBox()" aria-label="Fechar explicação">&times;</button>
         <h3>Funcionamento do sistema</h3>
         <p><b>1.</b> Ao apertar o botão, o Arduino recebe o comando digital de chamada/subida e aciona a saída de controle.</p>
         <p><b>2.</b> Os LEDs indicam o estado do comando e o motor é energizado para movimentar o sistema de transmissão.</p>
@@ -267,7 +270,7 @@ let modelGroup,floatT=0;
 let partCenter={},modelCenter,modelSize;
 let meshMap={},materialMap={},dimMap={},wireMap={},cotaGroup={};
 let isWire=false,isExplode=false,isCotas=false,isVideoDemo=false;
-let videoStart=0,videoBase={},videoDuration=18000,videoLoopId=0;
+let videoStart=0,videoBase={},videoDuration=18000,videoLoopId=0,videoInfoTimer=null;
 let videoFx=[];
 let explodeDir={},selectedMesh=null,totalTris=0;
 let frameCount=0,lastFPSTime=performance.now();
@@ -872,7 +875,7 @@ function startVideoDemo(){
   selectedMesh=null;document.getElementById('sel-info').classList.remove('show');
   document.querySelectorAll('.comp-item').forEach(el=>el.classList.remove('selected'));
   document.getElementById('btn-video').classList.add('active');
-  const info=document.getElementById('video-info-box'); if(info) info.classList.add('show');
+  hideVideoInfoBox();
   isVideoDemo=true; videoStart=performance.now(); videoLoopId++;
   // Vista frontal fixa, bem afastada, enquadrando o elevador inteiro até o último andar.
   if(modelGroup){modelGroup.rotation.set(0,0,0);modelGroup.position.y=0; if(videoBase.__model) videoBase.__model.r=modelGroup.rotation.clone();}
@@ -880,14 +883,26 @@ function startVideoDemo(){
   createVideoCableSystem();
   setVideoStatus('Vídeo: acionando painel de comandos');
 }
-function stopVideoDemo(){
-  if(!isVideoDemo) return;
+function hideVideoInfoBox(){
+  if(videoInfoTimer){clearTimeout(videoInfoTimer); videoInfoTimer=null;}
+  const info=document.getElementById('video-info-box');
+  if(info) info.classList.remove('show');
+}
+function showVideoInfoBoxAfterDemo(){
+  const info=document.getElementById('video-info-box');
+  if(!info) return;
+  if(videoInfoTimer){clearTimeout(videoInfoTimer); videoInfoTimer=null;}
+  info.classList.add('show');
+  videoInfoTimer=setTimeout(()=>{info.classList.remove('show'); videoInfoTimer=null;},10000);
+}
+function stopVideoDemo(showInfoAfter=false){
+  if(!isVideoDemo && !showInfoAfter) return;
   isVideoDemo=false; videoLoopId++;
   clearVideoFx();
   restoreVideoBase();
   const b=document.getElementById('btn-video'); if(b)b.classList.remove('active');
   const st=document.getElementById('video-status'); if(st)st.classList.remove('show');
-  const info=document.getElementById('video-info-box'); if(info)info.classList.remove('show');
+  if(showInfoAfter) showVideoInfoBoxAfterDemo(); else hideVideoInfoBox();
 }
 function markVideoComponent(label,on){
   const el=document.getElementById('ci-'+cssId(label));
@@ -981,7 +996,7 @@ function updateVideoCableSystem(rise,down,spin){
 function updateVideoDemo(now){
   if(!isVideoDemo) return;
   const t=(now-videoStart)/videoDuration;
-  if(t>=1){stopVideoDemo();return;}
+  if(t>=1){stopVideoDemo(true);return;}
   restoreVideoBase();
   // Mantém o conjunto sem rotação automática; a câmera inicia frontal e o usuário pode usar zoom.
   if(modelGroup){modelGroup.rotation.set(0,0,0);modelGroup.position.y=0;}
