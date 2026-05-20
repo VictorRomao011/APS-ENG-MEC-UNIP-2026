@@ -614,6 +614,8 @@ function makeHoloMaterial(label,colorInt){
     depthWrite:true,
     side:THREE.DoubleSide});
   mat.userData.baseEmissive=mat.emissive.getHex();
+  mat.userData.baseEmissiveIntensity=mat.emissiveIntensity;
+  mat.userData.baseColor=mat.color.getHex();
   mat.onBeforeCompile=function(sh){
     sh.uniforms.uTime={value:0};
     sh.uniforms.uDetail={value:tex.detail};
@@ -635,9 +637,56 @@ function makeHoloMaterial(label,colorInt){
 }
 function restoreEmissive(label){
   const m=materialMap[label];
-  if(m) m.emissive.setHex(m.userData&&m.userData.baseEmissive!=null?m.userData.baseEmissive:0x000000);
+  if(m){
+    m.emissive.setHex(m.userData&&m.userData.baseEmissive!=null?m.userData.baseEmissive:0x000000);
+    if(m.userData&&m.userData.baseEmissiveIntensity!=null) m.emissiveIntensity=m.userData.baseEmissiveIntensity;
+    if(m.userData&&m.userData.baseColor!=null) m.color.setHex(m.userData.baseColor);
+  }
   const e=edgeMap[label];
   if(e&&meshMap[label]){ e.color.setHex(meshMap[label].userData.edgeBase); e.opacity=0.92; }
+}
+/* === Realce visual do componente selecionado ===
+   Reforça a cor (boost de saturação/brilho) e acende a emissão usando a
+   própria cor do componente, fazendo o material clicado “saltar” da cena. */
+function highlightMesh(label){
+  const m=materialMap[label];
+  if(!m) return;
+  const base=new THREE.Color(m.userData.baseColor!=null?m.userData.baseColor:m.color.getHex());
+  // Cor mais forte (mais saturada e levemente mais clara) sem perder a identidade.
+  const punch=base.clone().offsetHSL(0,0.18,0.08);
+  m.color.copy(punch);
+  // Emissão usando a própria cor do componente para um brilho coerente.
+  m.emissive.copy(base);
+  m.emissiveIntensity=/led/i.test(label)?1.35:0.55;
+  const e=edgeMap[label];
+  if(e){ e.color.setHex(0xffffff); e.opacity=1.0; }
+}
+/* === Reenquadramento da câmera no componente selecionado ===
+   Calcula a bounding box em coordenadas de mundo (já com a rotação/posição
+   do modelGroup aplicada) e ajusta orbitTarget + distância para caber o
+   maior eixo no campo de visão. O loop dampCamera() interpola suavemente. */
+function focusOnMesh(label){
+  if(!camera||!meshMap[label]) return;
+  const mesh=meshMap[label];
+  // Garante matrizes atualizadas antes do Box3
+  mesh.updateWorldMatrix(true,true);
+  const box=new THREE.Box3().setFromObject(mesh);
+  if(box.isEmpty()) return;
+  const center=box.getCenter(new THREE.Vector3());
+  const size=box.getSize(new THREE.Vector3());
+  const maxDim=Math.max(size.x,size.y,size.z);
+  // Distância para que a maior dimensão caiba na FOV vertical e horizontal.
+  const fov=camera.fov*Math.PI/180;
+  const distV=(maxDim*0.5)/Math.tan(fov/2);
+  const distH=distV/Math.max(0.001,camera.aspect);
+  let dist=Math.max(distV,distH)*1.65; // padding p/ folga ao redor
+  dist=Math.max(150,Math.min(1500,dist));
+  // Aplica novos alvos — o dampCamera() suaviza a transição.
+  orbitTarget.copy(center);
+  spherical.r=dist;
+  // Evita ângulos quase-topo / quase-base que escondem o componente.
+  if(spherical.phi<0.35) spherical.phi=0.95;
+  if(spherical.phi>Math.PI-0.35) spherical.phi=Math.PI-0.95;
 }
 function makeHudTexture(big){
   const N=1024,c=document.createElement('canvas');c.width=c.height=N;
@@ -1149,8 +1198,8 @@ function onCanvasClick(e){
   if(selectedMesh) restoreEmissive(selectedMesh);
   if(hits.length>0){
     const label=hits[0].object.userData.label;selectedMesh=label;
-    materialMap[label].emissive.setHex(materialMap[label].userData.baseEmissive||0x000000);
-    if(edgeMap[label]){ edgeMap[label].color.setHex(0xffffff); edgeMap[label].opacity=1.0; }
+    highlightMesh(label);
+    focusOnMesh(label);
     const d=dimMap[label];
     document.getElementById('sel-name').textContent=label;
     document.getElementById('d-w').textContent=d.w.toFixed(1)+' mm';
